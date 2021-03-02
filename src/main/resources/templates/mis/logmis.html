@@ -1,0 +1,287 @@
+<!DOCTYPE HTML>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge;" />
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<!-- The jQuery library is a prerequisite for all jqSuite products -->
+	<script type="text/ecmascript" src="../webapp/jquery-3.2.1.min.js"></script>
+	<script type="text/ecmascript" src="../webapp/jquery-ui/jquery-ui.min.js"></script>
+	<script type="text/ecmascript" src="../webapp/bootstrap/js/bootstrap.js"></script>
+	<!-- This is the Javascript file of jqGrid --> 
+	<script type='text/ecmascript' src='../webapp/jquery-grid/js/jquery.jqGrid.min.js'></script>
+	<!-- This is the localization file of the grid controlling messages, labels, etc. -->
+	<script type='text/javascript' src='../webapp/jquery-grid/js/grid.locale-en.js'></script>	
+	<script type='text/javascript' src='../webapp/jquery-grid/js/jquery.blockui.js'></script>
+	<link rel="icon" type="image/x-icon" href="../webapp/ocbcLogo.gif"/>
+	<!-- A link to a jQuery UI ThemeRoller theme, more than 22 built-in and many more custom -->
+	<link rel="stylesheet" type="text/css" media="screen" href='../webapp/jquery-ui/jquery-ui.css'/>
+	<!-- The link to the CSS that the grid needs -->
+	<link rel="stylesheet" type="text/css" media="screen" href='../webapp/jquery-grid/ui.jqgrid.css'/>
+	<link href="../webapp/assets/css/bootstrap-united.css" rel="stylesheet" />
+<style>
+@media ( min-width : 768px) {
+	.container {
+		max-width: 50%;
+	}
+}
+@media ( min-width : 992px) {
+	.container {
+		max-width: 50%;
+	}
+}
+.navbar-default {
+    background-color: #772953;
+    border-color: #772953;
+}
+.ui-jqdialog .ui-jqdialog-titlebar {
+    padding: .1em 0;
+ }
+.ui-jqdialog .ui-jqdialog-title {
+    margin: .1em .0em .2em .2em;
+}
+.fm-button {
+	padding: .0em .5em .2em .5em;
+}
+.ui-icon-disk {
+    background-position: -296px -112px;
+}
+.ui-icon-close {
+    background-position: -280px -128px;
+}
+</style>
+    <title>Log Analyzer - MIS</title>    
+</head>
+<body>      
+
+<script type="text/javascript">
+$(document).ready(function() {
+	
+	/* Default Loading of the Data*/
+	$("#bwDiv").hide();
+	
+	function showDiv(){
+		$("#bwDiv").show();
+	}
+	
+	function hideDiv(){
+		$("#bwDiv").hide();
+	}
+	
+	$('#fromDate, #toDate').datepicker({
+	     changeMonth:true,
+	         changeYear:true,
+	         yearRange:"-1:+0",
+	         dateFormat:"yy-mm-dd" ,
+	         maxDate: '0',
+	 });
+	
+	/* Default Loading of the Data*/
+	
+	function blockUI() {
+		$.blockUI({message: '<img src="../webapp/jquery-grid/loadingajax.gif" /> Loading...'});
+	}
+	
+	function unBlockUI() {
+		$.unblockUI(); 
+	}
+	
+	$("#filter").change(function() {
+		 var formData = {};
+		 formData.day = $("#filter").val();
+		 
+		 if (formData.day == "Between")
+			 showDiv();
+		 else {
+			 hideDiv();
+			 clear();
+		 }
+		 
+    });
+	
+	function clear() {		
+		 $("#fromDate").val('');
+		 $("#toDate").val('');
+		 $("#ip").val('');
+	}
+		
+    function reloadData(formData){
+    	 blockUI();
+    	 $("#searchTable").setGridParam({datatype:'json'});
+    	 $("#searchTable").setGridParam({type:'POST'});
+    	 $("#searchTable").setGridParam({postData:formData});
+    	 $("#searchTable").setGridParam({url:'/logMisSearch'});
+    	 $("#searchTable").trigger("reloadGrid");
+    	 unBlockUI();
+     }
+     
+	//<![CDATA[
+     $("#search").click(function() { 
+    	 var formData = getFormData();
+    	 if(formData.filter == "Between" && (formData.fromDate == "" || formData.toDate == ""))
+    		 alert('Please fill From and To Date and click Search....');
+    	 else {
+    		 reloadData(formData);
+    	 }    	
+     });
+  	
+     function getFormData() {     
+    	 var formData = {};
+		 formData.filter = $("#filter").val();
+		 formData.fromDate = $("#fromDate").val();
+		 formData.toDate = $("#toDate").val();
+		 formData.ip = $("#ip").val();
+		 
+		 return formData;
+     }
+   //]]>
+     var emptyMsgDiv = $('<div><span style="align:center;color:red;font-size:20px">No Record Found....</span></div>');
+
+      $("#searchTable").jqGrid({
+          url: '/logMisSearch',
+          datatype: 'json',
+          mtype: 'POST',
+          postData: getFormData(), 
+          colModel: [
+        	{ label: 'Date', name: 'day', width: 100, editable: false},
+			{ label: 'IP Address', name: 'ip', width: 100, editable: false},
+			{ label: 'No. of Hits', name: 'hit', width: 50, editable: false},
+          ],
+          gridview:true,
+          loadonce:true,
+          page: 1,
+          width: 380,
+          height: 230,
+          rowNum: 100,
+		  viewrecords: true,
+		  emptyrecords: 'No Record Found....',
+		  autoencode: true,
+		  scrollPopUp:false,
+		  scrollLeftOffset: '83%',
+          scroll: 1, // set the scroll property to 1 to enable paging with scrollbar - virtual loading of records
+          emptyrecords: 'Scroll to bottom to retrieve new page', // the message will be displayed at the bottom 
+          pager : '#pager',
+          loadComplete: function () {
+              var ts = this;
+              if (ts.p.reccount === 0) {
+                  $(this).hide();
+                  emptyMsgDiv.show();
+                  $('#loadAll').addClass('ui-state-disabled');
+              } else {
+                  $(this).show();
+                  emptyMsgDiv.hide();
+                  $('#loadAll').removeClass('ui-state-disabled');
+              }
+          }
+      });
+      
+      // place div with empty message insde of bdiv
+      emptyMsgDiv.insertAfter($("#searchTable").parent());
+        
+     $("#searchTable").jqGrid('navGrid', '#pager', {
+         edit: false,
+         add: false,
+         del: false,
+         search: false,
+         refresh: false
+      });
+     
+     $("#searchTable").jqGrid('navGrid', '#pager', {
+         edit : false,
+         add : false,
+         del : false,
+         search : false
+     }).navButtonAdd('#pager', {
+         caption: "Export to Excel",
+         id: "exportToExcel",
+         buttonicon: "ui-icon-circle-arrow-s",
+         onClickButton: function () {
+         	ExportDataToExcel();
+         },
+         position: "last"
+     });
+   
+  function ExportDataToExcel() {  
+         $("#searchTable").jqGrid("exportToCsv",{
+        	separator: ",",
+			separatorReplace : "", // in order to interpret numbers
+			quote : '"', 
+			escquote : '"', 
+			newLine : "\r\n", // navigator.userAgent.match(/Windows/) ?	'\r\n' : '\n';
+			replaceNewLine : " ",
+			includeCaption : true,
+			includeLabels : true,
+			includeGroupHeader : true,
+			includeFooter: true,
+			fileName : "LogAnalyzerMISReport.csv",
+			returnAsString : false
+		});
+   }
+            
+});
+</script>
+	<div class="navbar navbar-default">
+		<div class="navbar-header">
+		</div>
+		<div class="navbar-collapse  navbar-responsive-collapse">
+			<h1 class="nav" align="center" style="color:white;margin:0">Log Analyzer-MIS</h1>				
+		</div>		
+	</div>
+	<div class="container">
+		<div class="panel panel-default">
+			<div class="panel-heading">MIS Data Search</div>
+			<div class="panel-body">
+				<form class="form-horizontal">
+					<div class="form-group">
+						<label for="regionSelect" class="control-label col-sm-2">Filter By</label>
+						<div class="col-sm-10">
+							 <select class="form-control" id="filter" name="filter">
+								<option value="Today" selected="selected">Today</option>
+								<option value="Between">Between</option>
+							</select>										
+						</div>
+					</div>
+					<div class="form-group" id="bwDiv">
+						<label for="countrySelect" class="control-label col-sm-2">Date Between</label>
+						<div class="col-sm-10">
+							<input type="text" class="form-control" name="fromDate" id="fromDate" placeholder="Select from Date"/>&nbsp;
+							<input type="text" class="form-control" name="toDate" id="toDate" placeholder="Select to Date"/>							 									
+						</div>
+					</div>	
+					<div class="form-group">
+						<label for="countrySelect" class="control-label col-sm-2">IP Address (Optional)</label>
+						<div class="col-sm-10">
+							<input type="text" class="form-control" name="ip" id="ip" placeholder="Enter IP Address"/>							 									
+						</div>
+					</div>							
+					<div class="col-sm-10" style="text-align:center">
+						<button id="search" type="button" class="btn btn-info">
+							<span class="glyphicon glyphicon-search"></span> Search
+						</button>
+					</div>							
+				</form>
+			</div>
+		</div>
+	</div>	
+	<div class="container">
+		<div class="panel panel-default">
+			<div class="panel-heading">MIS Details</div>
+				<div class="panel-body" align="center">					
+					<table class="table table-bordered" id="searchTable">
+					   <tr>
+				            <td />
+				       </tr> 
+					 </table>
+					 <div id="pager"></div>					
+			</div>
+		</div>
+	</div> 
+	<div class="container" style="text-align: center">
+		 Please email to <a href="mailto:TTA-SRE">TTA-SRE</a> if you are facing issues with DBMetricsLogger.
+	</div>
+<script type="text/javascript">
+	if (typeof browseris !== 'undefined') {
+	    browseris.ie = false;
+	}
+</script>
+</body>
+</html>

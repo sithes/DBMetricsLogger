@@ -1,0 +1,677 @@
+<!DOCTYPE HTML>
+<html xmlns="http://www.w3.org/1999/xhtml"
+	xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge;" />
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<script type="text/ecmascript" src="webapp/jquery-3.2.1.min.js"></script>
+<script type="text/ecmascript" src="webapp/jquery-ui/jquery-ui.min.js"></script>
+<script type="text/ecmascript" src="webapp/bootstrap/js/bootstrap.js"></script>
+
+<!-- This is the Javascript file of jqGrid --> 
+<script type='text/ecmascript' src='webapp/jquery-grid/js/jquery.jqGrid.min.js'></script>
+<!-- This is the localization file of the grid controlling messages, labels, etc. -->
+<script type='text/javascript' src='webapp/jquery-grid/js/grid.locale-en.js'></script>	
+<script type='text/javascript' src='webapp/jquery-grid/js/jquery.blockui.js'></script>
+
+<!-- The link to the JS that the datetimepicker needs -->
+<script type='text/javascript' src='webapp/datetimepicker/jquery-ui-sliderAccess.js'></script>
+<script type='text/javascript' src='webapp/datetimepicker/jquery-ui-timepicker-addon.js'></script>
+	
+<link rel="icon" type="image/x-icon" href="webapp/ocbc_logo.gif"/>
+<!-- A link to a jQuery UI ThemeRoller theme, more than 22 built-in and many more custom -->
+<link rel="stylesheet" type="text/css" media="screen" href='webapp/jquery-ui/jquery-ui.css'/>
+<!-- The link to the CSS that the grid needs -->
+<link rel="stylesheet" type="text/css" media="screen" href='webapp/jquery-grid/ui.jqgrid.css'/>
+<link href="webapp/assets/css/bootstrap-united.css" rel="stylesheet" />
+<!-- The link to the CSS that the datetimepicker needs -->
+<link href="webapp/datetimepicker/jquery-ui-timepicker-addon.css" rel="stylesheet" />
+
+<style>
+@media ( min-width : 768px) {
+	.container {
+		max-width: 80%;
+	}
+}
+
+@media ( min-width : 992px) {
+	.container {
+		max-width: 95%;
+	}
+}
+
+.disabled {
+	color: #666;
+}
+
+.navbar-default {
+    background-color: #6d268c;
+    border-color: #6d268c;/*#772953*/
+}
+
+.listContainer {
+    width:900px;	  	
+}
+
+.ui-datepicker{ z-index: 999999999 !important;}
+
+/* Legend */
+
+* {
+    box-sizing: border-box;
+}
+
+/* Create two equal columns that floats next to each other */
+.column {
+    float: left;
+    width: 50%;
+    padding: 10px;   
+    border: 1px solid #e8e4e4;
+}
+
+/* Clear floats after the columns */
+.row:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* Responsive layout - makes the two columns stack on top of each other instead of next to each other */
+@media screen and (max-width: 600px) {
+    .column {
+        width: 100%;
+    }
+}
+
+.fixed-panel {
+  min-height: 340px;
+  max-height: 340px;
+  overflow-y: scroll;
+}
+</style>
+<title>DB Metrics Logger</title>
+</head>
+<body>
+<script th:inline="javascript">
+/*<![CDATA[*/
+
+var displayRowCount = [[${displayRowCount}]];
+
+/*]]>*/
+</script>
+<script type="text/javascript">
+$(document).ready(function() {
+	
+	var isExportButtonAdded = false;
+	
+	function blockUI() {
+		$.blockUI({message: '<img src="../webapp/jquery-grid/loadingajax.gif" /> Loading...'});
+	}
+	
+	function unBlockUI() {
+		$.unblockUI(); 
+	}
+	
+	$("#filter").change(function() {
+		 var formData = {};
+		 formData.day = $("#filter").val();
+		 
+		 if (formData.day == "Between")
+			 showDiv();
+		 else {			 
+			 clear();
+		 }
+		 
+    });
+	
+	$("#btnReset").click(function() {
+		clear();
+	});
+	
+	function clear() {	
+		 $("#filter").val('Today');
+		 $("#userName").val('');
+		 $("#fromDate").val('');
+		 $("#toDate").val('');
+		 hideDiv();
+	}
+	
+	/*List Population*/	
+	$("#region").change(function() {
+		 //clear remaining selection
+		 $('#environment').empty();
+		 var formData = {};
+		 formData.region = $("#region").val();
+		 formData.country = '';
+		 formData.environment = '';
+		 paintData(formData, "#country");
+		
+    });
+	
+	$("#country").change(function() {
+		 var formData = {};
+		 formData.region = $("#region").val();
+		 formData.country = $("#country").val();	
+		 formData.environment = '';
+		 paintData(formData, "#environment");
+		 $("#searchTable").setGridParam({serach:false,searchdata: {},page:1}).trigger("reloadGrid");
+		 
+   });
+	
+	function paintData(formData, id) {
+		$.ajax({
+			url: '/dropListPopulation',
+	        type: 'POST',
+	        dataType: 'json',
+	        data: formData,
+	        success: function(data) { 
+	        	$(id).empty();
+	        	$(id).append('<option value="">Select</option>');
+	        	$.each(data, function(key, val) {
+	        		$(id).append('<option value="'+key+'">'+val+'</option>');
+	        	});
+        	}
+		});
+	}
+	
+	//Keep the previous country code for very first time screen loading
+	$("#previousCountryCode").val($("#country").val());
+	/*LogAnalyzer Part */
+	
+	/* Default Loading of the Data*/
+	$("#bwDiv").hide();
+	
+	function showDiv(){
+		$("#bwDiv").show();
+	}
+	
+	function hideDiv(){
+		$("#bwDiv").hide();
+	}
+	
+	//<![CDATA[
+	
+	//Date Time 
+	var startDateTextBox = $('#fromDate');
+	var endDateTextBox = $('#toDate');
+	
+	startDateTextBox.datetimepicker({
+		controlType: 'select',
+		oneLine: true,
+		dateFormat: "yy-mm-dd",
+		timeFormat: 'HH:mm:ss',
+		minDate: -6,
+		maxDate: 0,
+		minute: -10,
+		//timezone: "+0800",
+		onClose: function(dateText, inst) {
+			console.log("startDateTextBox dateText"+dateText);
+			if (endDateTextBox.val() != '') {
+				var testStartDate = startDateTextBox.datetimepicker('getDate');
+				var testEndDate = endDateTextBox.datetimepicker('getDate');
+				if (testStartDate > testEndDate)
+					endDateTextBox.datetimepicker('setDate', testStartDate);
+			}
+			else {
+				var d2=new Date(dateText);
+				//adding current time + 30 minute to end date
+				endDateTextBox.datetimepicker('setDate', (new Date(d2.getTime() + 10*60*1000)));
+				//console.log("startDateTextBox else d2 "+d2+"new date"+(new Date(d2.getTime() + 30*60*1000)));
+			}
+		},
+		onSelect: function (selectedDateTime){
+			$("#toDate").val('');
+			//console.log("onSelect selectedDateTime"+selectedDateTime);
+			var d2=new Date(selectedDateTime);
+			endDateTextBox.datetimepicker('option', 'minDate', (new Date(d2.getTime() + 10*60*1000)));
+		}
+	});
+	
+	endDateTextBox.datetimepicker({
+		controlType: 'select',
+		oneLine: true,
+		dateFormat: "yy-mm-dd",
+		timeFormat: 'HH:mm:ss',
+		minDate: -6,
+		//minute: 30,
+		maxDate: 0,
+		//timezone: "+0800",
+		onClose: function(dateText, inst) {
+			console.log("endDateTextBox dateText"+dateText);
+			if (startDateTextBox.val() != '') {
+				var testStartDate = startDateTextBox.datetimepicker('getDate');
+				var testEndDate = endDateTextBox.datetimepicker('getDate');
+				if (testStartDate > testEndDate)
+					startDateTextBox.datetimepicker('setDate', testEndDate);
+			}
+			else {
+				startDateTextBox.val(dateText);
+			}
+		},
+		onSelect: function (selectedDateTime){			
+			startDateTextBox.datetimepicker('option', 'maxDate', endDateTextBox.datetimepicker('getDate') );
+		}
+	});
+  
+	function dateValidation(fromDate, toDate) {	   
+	   	var frmDate=new Date(fromDate);
+		var tooDate=new Date(toDate);
+		if (frmDate <= tooDate)
+			return true;
+		else
+			return false;
+	}
+   
+	/* Default Loading of the Data*/
+    
+   function getFormData() {     
+    	 var formData = {};
+    	 formData.loadAll = "N";//this needs to be considered when we enable for CVS download
+    	 formData.region = $("#region").val();
+    	 formData.country = $("#country").val();
+		 formData.environment = $("#environment").val();
+		 formData.filter = $("#filter").val();
+		 formData.fromDate = $("#fromDate").val();
+		 formData.toDate = $("#toDate").val();
+		 
+		 if ($("#userName").val() != '')
+			 formData.user_NAME = $("#userName").val();
+		 
+		 return formData;
+     }
+  
+	 $("#search").click(function() {  
+		 if(isExportButtonAdded)
+	           	$("#exportToExcel").hide();
+	     var formData = getFormData(); 
+		
+	     if(formData.country == "" || formData.environment == "" )    	
+	 		 alert('Please Select proper list to proceed further.');
+	     else if(formData.filter == "Between" && (formData.fromDate == "" || formData.toDate == ""))    	
+	 		 alert('Please fill From and To Date and click Search....');
+	     else if (formData.filter == "Between" && dateValidation($("#fromDate").val(),$("#toDate").val())===false) {
+	  		 alert('From date should be Less than or Equal To date');
+	  	  }
+	 	 else {	 		 
+	    	 formData.loadAll = "N";
+	    	 formData.rows = displayRowCount;
+	    	 formData.page = 1;
+	    	 formData.sidx = "";
+	    	 formData.sord = "desc";
+	    	 blockUI();
+	    	// $("#searchTable").GridUnload();
+	    	 $.jgrid.gridUnload("#searchTable"); 
+	    	 loadGrid();
+	    	/*  $('#searchTable').jqGrid('clearGridData');
+	    	 $("#searchTable").setGridParam({datatype:'json'});
+	    	 $("#searchTable").setGridParam({type:'POST'});
+	    	 $("#searchTable").setGridParam({postData:formData});
+	    	 $("#searchTable").setGridParam({url:'/logSearch'});
+	    	 $("#searchTable").trigger("reloadGrid");  */
+	    	 unBlockUI();
+	 	 }
+     });
+	
+	//]]>
+	
+	var emptyMsgDiv = $('<div><span style="align:center;color:red;font-size:20px">No Record Found....</span></div>');
+
+	function loadGrid() {
+	    $("#searchTable").jqGrid({
+	        url: '/logSearch',
+	        datatype: 'json',
+	        mtype: 'POST',
+	        postData: getFormData(),               
+	        colModel: [
+				{ label: 'APP_SERVER_DATETIME', name: 'app_SERVER_DATETIME', key:true, search: false},
+				{ label: 'API1_FUNCCODE', name: 'api1_FUNCCODE', search: true},
+				{ label: 'USER_NAME', name: 'user_NAME', search: true},				
+				{ label: 'REQ_URI', name: 'req_URI', search: true },
+				{ label: 'GM_JFP_SESSION_ID', name: 'gm_JFP_SESSION_ID', search: true},
+				{ label: 'GM Total Res Time', name: 'gm_TTIMEMS', search: true},
+				{ label: 'API Res Time', name: 'api_TTIMEMS', search: true},
+				{ label: 'ESB Res Time', name: 'esb_TTIMEMS', search: true},					
+				{ label: 'DEVICE_TYPE', name: 'device_TYPE', search: true },
+				{ label: 'FUNC_TYPE', name: 'func_TYPE', search: true},
+				{ label: 'FUNC_SUB_TYPE', name: 'func_SUB_TYPE', search: true},				
+				{ label: 'STATUS_CODE', name: 'status_CODE', search: true},
+				{ label: 'STATUS_MSG', name: 'status_MSG', search: true},
+				{ label: 'APP_SERVER_INSTANCE_ID', name: 'app_SERVER_INSTANCE_ID', search: true},			
+				{ label: 'JFX_INSTANCE_ID', name: 'jfx_INSTANCE_ID', search: true},
+				{ label: 'JFX_SESSION_ID', name: 'jfx_SESSION_ID', search: true},							
+				{ label: 'DEVICE_SID', name: 'device_SID', search: true},				
+				{ label: 'DEVICE_ID', name: 'device_ID', search: true},
+				{ label: 'CUSTOMER_ROLE', name: 'customer_ROLE', search: true},
+				{ label: 'REQ_LOG_DATA', name: 'req_LOG_DATA', search: false},
+				{ label: 'RES_LOG_DATA', name: 'res_LOG_DATA', search: false}				
+	        ],
+	        gridview: true,
+	        page: 1,
+	       /*  width: 880, */
+	        altRows: true,
+	        shrinkToFit: false,
+	        autowidth: true,
+	        height: 250,
+	        rowNum: displayRowCount,
+			viewrecords: true,
+			emptyrecords: 'No Record Found....',
+			autoencode: true,
+			scrollPopUp:true,
+			scrollLeftOffset: '83%',
+	        scroll: 0, // set the scroll property to 1 to enable paging with scrollbar - virtual loading of records
+	        emptyrecords: 'Scroll to bottom to retrieve new page', // the message will be displayed at the bottom 
+	        pager : '#pager',
+	        loadComplete: function () {
+	        	 var ts = this;
+	              if (ts.p.reccount === 0) {
+	                  $(this).hide();
+	                  emptyMsgDiv.show();
+	                  $('#loadAll').addClass('ui-state-disabled');
+	                  if(isExportButtonAdded)
+	                  	$("#exportToExcel").hide();
+	                  //hide search link when data is there
+	                  $('#searchLink').hide();
+	              } else {
+	                  $(this).show();
+	                  emptyMsgDiv.hide();
+	                  $('#loadAll').removeClass('ui-state-disabled');
+	                  //show search link when data is there
+	                  $('#searchLink').show();
+	              }
+	        }
+	    });
+	    $('#searchTable').jqGrid('filterToolbar', { searchOnEnter: true, enableClear: false });
+	    
+	    // place div with empty message insde of bdiv
+	    emptyMsgDiv.insertAfter($("#searchTable").parent());
+	    
+	    //Below feature is for to enable the CSV download option. As this could lead to have a performance issue.
+	    /*$("#searchTable").jqGrid('navGrid', '#pager', {
+            refresh:false,
+	    	edit : false,
+            add : false,
+            del : false,
+            search : false
+        }).navButtonAdd('#pager', {
+            caption: "Load All",
+            id: "loadAll",
+            buttonicon: "ui-icon-disk",
+            onClickButton: function () {
+                loadAll();
+            },
+            position: "last"
+        });
+               
+         function loadAll() {        	
+         	var formData = getFormData(); 
+         	formData.loadAll = "";
+      		populateGrid(formData);
+      		//Add Export to Excel Button
+      		if (!isExportButtonAdded)
+      			AddExportButton();
+      		else
+      			$("#exportToExcel").show();
+      		isExportButtonAdded = true;
+         }
+           
+         function AddExportButton(){
+         	$("#searchTable").jqGrid('navGrid', '#pager', {
+                 edit : false,
+                 add : false,
+                 del : false,
+                 search : false
+             }).navButtonAdd('#pager', {
+                 caption: "Export to Excel",
+                 id: "exportToExcel",
+                 buttonicon: "ui-icon-circle-arrow-s",
+                 onClickButton: function () {
+                 	ExportDataToExcel();
+                 },
+                 position: "last"
+             });
+         }
+	    
+         function populateGrid(postData) {  
+        	 postData.rows = 100;
+        	 postData.page = 1;
+        	 postData.sidx = "";
+        	 postData.sord = "asc";
+        	    	 
+        	 blockUI();
+        	 var i=0;
+         	 $.ajax({
+                 url: '/logSearch',
+                 type: 'POST',
+                 dataType: 'json',
+                 data: postData,
+                 success: function(data) {   
+                	$('#searchTable').jqGrid('clearGridData');
+                	$("#searchTable").setGridParam({
+                        datatype: 'jsonstring',
+                        datastr: data
+                    }).trigger("reloadGrid");
+                	unBlockUI();
+                 }
+             });
+         }
+
+
+         
+	  //Export
+		function ExportDataToExcel() {  
+	        $("#searchTable").jqGrid("exportToCsv",{
+	       	separator: ",",
+				separatorReplace : "", // in order to interpret numbers
+				quote : '"', 
+				escquote : '"', 
+				newLine : "\r\n", // navigator.userAgent.match(/Windows/) ?	'\r\n' : '\n';
+				replaceNewLine : " ",
+				includeCaption : true,
+				includeLabels : true,
+				includeGroupHeader : true,
+				includeFooter: true,
+				fileName : "DBLoggerReport.csv",
+				returnAsString : false
+			});
+	  	}*/
+	}
+	
+		
+
+});
+	
+	</script>
+	<div class="navbar navbar-default">
+		<div class="navbar-header"></div>
+		<div class="navbar-collapse  navbar-responsive-collapse">
+			<h1 class="nav" align="center" style="color: white; margin: 0">Welcome
+				to Log Analyzer</h1>
+		</div>
+	</div>
+
+<!-- Fluid Container -->
+
+<div class="container listContainer" style="text-align:center">
+    <div class="row">
+        <div class="col-xs-12 col-sm-12 col-md-6 col-lg-g">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <div class="row">
+                        <div class="col-xs-10 col-sm-10 col-md-10 col-lg-10">
+                            <strong>Log Analyzer Filter</strong>
+                        </div>                       
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <form class="form-horizontal" method="post">
+						<div class="form-group">
+							<label for="regionSelect" class="control-label col-sm-4">Region</label>
+							<div class="col-sm-7">
+								 <select class="form-control" id="region" name="region" th:field="*{region}">
+					                <option th:each="entry : ${region.entrySet()}" th:value="${entry.key}" th:text="${entry.value}">Options</option>
+					             </select>										
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="countrySelect" class="control-label col-sm-4">Country</label>
+							<div class="col-sm-7">
+								 <select class="form-control" id="country" name="country" th:field="*{country}">
+									<option th:each="entry : ${country.entrySet()}" th:value="${entry.key}" th:text="${entry.value}">Options</option>
+					             </select>										
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="environmentSelect" class="control-label col-sm-4" id="environmentSelect">Environment</label>
+							<div class="col-sm-7">
+								 <select class="form-control" id="environment" name="environment" th:field="*{env}">
+								 	<option th:each="entry : ${env.entrySet()}" th:value="${entry.key}" th:text="${entry.value}">Options</option>
+					             </select>										
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="filterSelect" class="control-label col-sm-4">Filter By</label>
+							<div class="col-sm-7">
+								 <select class="form-control" id="filter" name="filter">
+									<option value="Today" selected="selected">Today</option>
+									<option value="Between">Between</option>
+								</select>										
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="userNameText" class="control-label col-sm-4">User Name (Optional)</label>
+							<div class="col-sm-7">
+								<input type="text" class="form-control" name="userName" id="userName" placeholder="Enter User Name"/>							 									
+							</div>
+						</div>	
+						<div class="form-group" id="bwDiv">
+							<label for="countrySelect" class="control-label col-sm-4">Date Between</label>
+							<div class="col-sm-7">
+								<input type="text" class="form-control" name="fromDate" id="fromDate" placeholder="Select from Date"/>&nbsp;
+								<input type="text" class="form-control" name="toDate" id="toDate" placeholder="Select to Date"/>							 									
+							</div>
+						</div>	
+						<div class="col-sm-11" style="text-align: center">	
+							<button class="btn btn-default" id="btnReset">Reset</button>					
+							<button id="search" type="button" class="btn btn-info">
+								<span class="glyphicon glyphicon-search"></span> Search
+							</button>		
+							<input type="hidden" id="previousCountryCode" name="previousCountryCode" />					
+						</div>
+					</form>
+                </div>
+            </div>
+        </div>
+        <div class="col-xs-12 col-sm-12 col-md-6 col-lg-g">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                   <div class="row">
+                        <div class="col-xs-10 col-sm-10 col-md-10 col-lg-10">
+                            <strong>Legend Information</strong>
+                        </div>                        
+                    </div>
+                </div>
+                <div class="panel-body fixed-panel">
+                     <div class="row">
+			            <div class="column"><strong>DB_COLUMN</strong></div><div class="column"><strong>Description</strong></div>
+			        </div>
+			        
+			        <div class="row">
+			            <div class="column">APP_SERVER_DATETIME</div><div class="column">GM Server Request Time</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">USER_NAME</div><div class="column">GM User ID</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">REQ_URI</div><div class="column">URL from GM side</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">GM_JFP_SESSION_ID</div><div class="column">GM Log ID</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">GM_TTIMEMS</div><div class="column">GM Total Response Time</div>
+			        </div>
+				    <div class="row">
+			            <div class="column">API_TTIMEMS</div><div class="column">API Total Response Time</div>
+			        </div>	
+				    <div class="row">
+			            <div class="column">ESB_TTIMEMS</div><div class="column">ESB Total Response Time</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">DEVICE_TYPE</div><div class="column">Device used for testing</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">FUNC_TYPE</div><div class="column">Module Name</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">FUNC_SUB_TYPE</div><div class="column">Screen Name</div>
+			        </div>
+			       	<div class="row">
+			            <div class="column">API1_FUNCCODE</div><div class="column">JFX Service ID</div>
+			        </div>	
+				    <div class="row">
+			            <div class="column">STATUS_CODE</div><div class="column">RESPONSE status code</div>
+			        </div>
+	   				<div class="row">
+			            <div class="column">STATUS_MSG</div><div class="column">API Method type</div>
+			        </div>
+					<div class="row">
+			            <div class="column">APP_SERVER_INSTANCE_ID</div><div class="column">GM Server Name</div>
+			        </div>			       
+			        <div class="row">
+			            <div class="column">JFX_INSTANCE_ID</div><div class="column">JFX Server / UUID for API Calls</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">JFX_SESSION_ID</div><div class="column">JFX User Key</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">DEVICE_SID</div><div class="column">SID from Request Headers</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">DEVICE_ID</div><div class="column">Device ID from Request Headers</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">CUSTOMER_ROLE</div><div class="column">Role</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">REQ_LOG_DATA</div><div class="column">Request XML</div>
+			        </div>
+			        <div class="row">
+			            <div class="column">RES_LOG_DATA</div><div class="column">Response XML</div>
+			        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- fluid Container !-->
+	
+	<div class="container" style="text-align:center">
+		<div class="panel panel-default">
+			<div class="panel-heading"><strong>Log Search Results</strong></div>
+			<div class="panel-body">
+				<div class="form-group">
+					<table class="table table-bordered" id="searchTable">
+					   <tr>
+				            <td />
+				       </tr> 
+					 </table>
+					 <div id="pager"></div>	
+					
+					<div id='errorDiv'></div>	
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="container" style="text-align: center">
+
+		Please email to <a
+			href="mailto:TTA-SRE">TTA-SRE</a> if you are facing issues with DBMetricsLogger.
+	</div>
+	<script type="text/javascript">
+		if (typeof browseris !== 'undefined') {
+			browseris.ie = false;
+		}
+	</script>
+</body>
+</html>
